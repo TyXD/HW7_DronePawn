@@ -54,10 +54,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	UInputAction* RollAction;
 
-	UPROPERTY(EditAnywhere, Category = "Movement|Gravity")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Gravity")
 	float Gravity = -980.0f;
 
-	UPROPERTY(EditAnywhere, Category = "Movement|Gravity")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Gravity")
 	float AirControlRatio = 0.3f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
@@ -89,6 +89,5 @@ private:
 	void Look(const FInputActionValue& Value);
 	void FlyUpDown(const FInputActionValue& Value);
 	void Roll(const FInputActionValue& Value);
-	void StopMove(const FInputActionValue& Value);
 	void CheckGround();
 };

@@ -57,8 +57,6 @@ void ADronePawn::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	CheckGround();
-
 	if (bIsLanding)
 	{
 		const FRotator CurrentRotation = GetActorRotation();
@@ -75,23 +73,22 @@ void ADronePawn::Tick(float DeltaTime)
 		}
 	}
 
+	CheckGround();
+
 	if (!bIsFly) 
 	{
-		if (bIsLanding)
+		if (bIsGrounded)
 		{
 			Velocity.Z = 0;
 		}
-		else if (bIsGrounded)
-		{
-			if (Velocity.Z < 0) Velocity.Z = 0;
-		}
 		else
 		{
-			Velocity.Z += Gravity * DeltaTime; 
+			Velocity.Z += Gravity * DeltaTime;
 		}
+
+		AddActorWorldOffset(FVector(0.f, 0.f, Velocity.Z * DeltaTime), true);
 	}
-	FVector DeltaLocation = Velocity * DeltaTime;
-	AddActorWorldOffset(DeltaLocation, true);
+
 	bIsFly = false;
 }
 
@@ -102,7 +99,6 @@ void ADronePawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent
 	if (UEnhancedInputComponent* EnhancedInputComponent = CastChecked<UEnhancedInputComponent>(PlayerInputComponent))
 	{
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &ADronePawn::Move);
-		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Completed, this, &ADronePawn::StopMove);
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &ADronePawn::Look);
 		EnhancedInputComponent->BindAction(FlyUpDownAction, ETriggerEvent::Triggered, this, &ADronePawn::FlyUpDown);
 		EnhancedInputComponent->BindAction(RollAction, ETriggerEvent::Triggered, this, &ADronePawn::Roll);
@@ -112,22 +108,24 @@ void ADronePawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent
 void ADronePawn::Move(const FInputActionValue& Value)
 {
 	const FVector2D MoveVector = Value.Get<FVector2D>();
+	const float DeltaTime = GetWorld()->GetDeltaSeconds();
 	float CurrentMoveSpeed = bIsGrounded ? MoveSpeed : MoveSpeed * AirControlRatio;
 
-	const FVector ForwardDirection = GetActorForwardVector() * MoveVector.Y;
-	const FVector RightDirection = GetActorRightVector() * MoveVector.X;
+	const FVector ForwardMovement = FVector::ForwardVector * MoveVector.Y * CurrentMoveSpeed * DeltaTime;
+	const FVector RightMovement = FVector::RightVector * MoveVector.X * CurrentMoveSpeed * DeltaTime;
 
-	FVector WorldMoveDirection = (ForwardDirection + RightDirection).GetSafeNormal();
-
-	Velocity.X = WorldMoveDirection.X * CurrentMoveSpeed;
-	Velocity.Y = WorldMoveDirection.Y * CurrentMoveSpeed;
+	AddActorLocalOffset(ForwardMovement, true);
+	AddActorLocalOffset(RightMovement, true);
 }
 
 void ADronePawn::FlyUpDown(const FInputActionValue& Value)
 {
-	const float UpDownValue = Value.Get<float>();
+	Velocity.Z = 0;
 
-	Velocity.Z = UpDownValue * MoveSpeed;
+	const float UpDownValue = Value.Get<float>();
+	const float DeltaTime = GetWorld()->GetDeltaSeconds();
+
+	AddActorLocalOffset(FVector::UpVector * UpDownValue * MoveSpeed * DeltaTime, true);
 
 	bIsFly = true;
 }
@@ -208,8 +206,3 @@ void ADronePawn::CheckGround()
 	}
 }
 
-void ADronePawn::StopMove(const FInputActionValue& Value)
-{
-	Velocity.X = 0;
-	Velocity.Y = 0;
-}
