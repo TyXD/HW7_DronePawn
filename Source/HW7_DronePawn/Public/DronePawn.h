@@ -10,9 +10,7 @@ class UBoxComponent;
 class USkeletalMeshComponent;
 class USpringArmComponent;
 class UCameraComponent;
-class UInputMappingContext;
-class UInputAction;
-struct FInputActionValue;
+
 
 UCLASS()
 class HW7_DRONEPAWN_API ADronePawn : public APawn
@@ -38,27 +36,14 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	UCameraComponent* CameraComponent;
 
-	// Enhanced Input 에셋
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-	UInputMappingContext* DefaultMappingContext;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-	UInputAction* MoveAction;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-	UInputAction* LookAction;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-	UInputAction* FlyUpDownAction;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-	UInputAction* RollAction;
-
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Gravity")
 	float Gravity = -980.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Gravity")
 	float AirControlRatio = 0.3f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Gravity")
+	float GroundCheckDistance = 15.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
 	float MoveSpeed = 500.0f;
@@ -83,11 +68,18 @@ public:
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
-private:
+protected:
 
+	UFUNCTION()
 	void Move(const FInputActionValue& Value);
+	UFUNCTION()
 	void Look(const FInputActionValue& Value);
+	UFUNCTION()
 	void FlyUpDown(const FInputActionValue& Value);
+	UFUNCTION()
 	void Roll(const FInputActionValue& Value);
+
+private:
+	
 	void CheckGround();
 };

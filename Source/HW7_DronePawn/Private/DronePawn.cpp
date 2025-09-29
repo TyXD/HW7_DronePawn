@@ -4,8 +4,8 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Camera/CameraComponent.h"
+#include "DroneController.h"
 #include "EnhancedInputComponent.h"
-#include "EnhancedInputSubsystems.h"
 #include "Kismet/KismetSystemLibrary.h"
 
 ADronePawn::ADronePawn()
@@ -43,13 +43,7 @@ void ADronePawn::BeginPlay()
 {
 	Super::BeginPlay();
 
-	if (APlayerController* PlayerController = Cast<APlayerController>(GetController()))
-	{
-		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
-		{
-			Subsystem->AddMappingContext(DefaultMappingContext, 0);
-		}
-	}
+	
 }
 
 // Called every frame
@@ -96,12 +90,52 @@ void ADronePawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
-	if (UEnhancedInputComponent* EnhancedInputComponent = CastChecked<UEnhancedInputComponent>(PlayerInputComponent))
+
+	// Enhanced InputComponent로 캐스팅
+	if (UEnhancedInputComponent* EnhancedInput = Cast<UEnhancedInputComponent>(PlayerInputComponent))
 	{
-		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &ADronePawn::Move);
-		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &ADronePawn::Look);
-		EnhancedInputComponent->BindAction(FlyUpDownAction, ETriggerEvent::Triggered, this, &ADronePawn::FlyUpDown);
-		EnhancedInputComponent->BindAction(RollAction, ETriggerEvent::Triggered, this, &ADronePawn::Roll);
+		// IA를 가져오기 위해 현재 소유 중인 Controller를 ASpartaPlayerController로 캐스팅
+		if (ADroneController* DroneController = Cast<ADroneController>(GetController()))
+		{
+			if (DroneController->MoveAction)
+			{
+				EnhancedInput->BindAction(
+					DroneController->MoveAction,
+					ETriggerEvent::Triggered,
+					this,
+					&ADronePawn::Move
+				);
+			}
+			
+			if (DroneController->LookAction)
+			{
+				EnhancedInput->BindAction(
+					DroneController->LookAction,
+					ETriggerEvent::Triggered,
+					this,
+					&ADronePawn::Look
+				);
+			}
+
+			if (DroneController->FlyUpDownAction)
+			{
+				EnhancedInput->BindAction(
+					DroneController->FlyUpDownAction,
+					ETriggerEvent::Triggered,
+					this,
+					&ADronePawn::FlyUpDown
+				);
+			}
+			if (DroneController->RollAction)
+			{
+				EnhancedInput->BindAction(
+					DroneController->RollAction,
+					ETriggerEvent::Triggered,
+					this,
+					&ADronePawn::Roll
+				);
+			}
+		}
 	}
 }
 
@@ -120,9 +154,15 @@ void ADronePawn::Move(const FInputActionValue& Value)
 
 void ADronePawn::FlyUpDown(const FInputActionValue& Value)
 {
+	const float UpDownValue = Value.Get<float>();
+
+	if (UpDownValue < 0.0f && bIsGrounded)
+	{
+		return;
+	}
+
 	Velocity.Z = 0;
 
-	const float UpDownValue = Value.Get<float>();
 	const float DeltaTime = GetWorld()->GetDeltaSeconds();
 
 	AddActorLocalOffset(FVector::UpVector * UpDownValue * MoveSpeed * DeltaTime, true);
@@ -160,44 +200,38 @@ void ADronePawn::Roll(const FInputActionValue& Value)
 
 void ADronePawn::CheckGround()
 {
-	FVector Start = GetActorLocation();
+	if (!GetWorld() || !BoxComponent) return;
 
-	const float LandingProximity = 100.0f;
-	FVector End = Start - FVector(0, 0, LandingProximity);
+	const FVector Start = GetActorLocation();
+	const float HalfHeight = BoxComponent->GetScaledBoxExtent().Z;
+	const float TraceLength = HalfHeight + GroundCheckDistance; 
+	const FVector End = Start - FVector(0.f, 0.f, TraceLength);
 
 	FHitResult HitResult;
-	TArray<AActor*> ActorsToIgnore;
-	ActorsToIgnore.Add(this);
+	FCollisionQueryParams Params(TEXT("GroundCheck"), false, this);
 
-	bool bHit = UKismetSystemLibrary::LineTraceSingle(
-		GetWorld(),
+	const bool bHit = GetWorld()->LineTraceSingleByChannel(
+		HitResult,
 		Start,
 		End,
-		UEngineTypes::ConvertToTraceType(ECC_Visibility),
-		false,
-		ActorsToIgnore,
-		EDrawDebugTrace::None,
-		HitResult,
-		true
+		ECC_Visibility,
+		Params
 	);
 
-	if (bHit && HitResult.bBlockingHit)
-	{
-		const float GroundDistance = (Start - HitResult.ImpactPoint).Size();
-		const bool bIsActuallyTouchingGround = GroundDistance <= (BoxComponent->GetScaledBoxExtent().Z + 5.0f);
+	// DrawDebugLine(GetWorld(), Start, End, bHit ? FColor::Green : FColor::Red, false, 0.f, 0, 1.f);
 
-		if (bIsActuallyTouchingGround)
+	if (bHit && HitResult.ImpactNormal.Z > 0.7f)
+	{
+		if (!bIsGrounded)
 		{
-			if (!bIsGrounded)
-			{
-				bIsLanding = true;
-			}
-			bIsGrounded = true;
-			if (Velocity.Z < 0) Velocity.Z = 0;
+			bIsLanding = true;
 		}
-		else
+
+		bIsGrounded = true;
+
+		if (Velocity.Z < 0)
 		{
-			bIsGrounded = false;
+			Velocity.Z = 0;
 		}
 	}
 	else
